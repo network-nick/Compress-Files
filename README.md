@@ -1,4 +1,4 @@
 # Compress-Files
-PowerShell script used for file archiving
+PowerShell function used for file archiving
 
 
