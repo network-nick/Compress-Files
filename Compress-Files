@@ -1,0 +1,92 @@
+#Compress Files
+Function Compress-Files {
+<#
+.SYNOPSIS
+Compress-Files will examine a specified folder. Any folders within the specified folder will be archived. Archiving is done using 7za. If 7za is not present in the correct location the script will fail.
+
+.DESCRIPTION
+All folders within a specified parent folder will be archived if they are above a specified size. The archiving process will Zip any files between 30 - 90 days old and remove the original uncompressed file. Anything older than 90 days old will be deleted.
+
+.PARAMETER Path
+The path to the parent folder. Default is D:\Logs
+
+.PARAMETER SizeLimit
+Folder size limit in MB, if any folder is larger than this, the folder contents will be archived. Optional. Default value is 500
+
+.PARAMETER UpperLimit
+Number of days. Files with a creation time between the lower and upper limit parameters will be zipped. Optional. Default value is 90
+
+.PARAMETER LowerLimit
+Number of days. Files with a creation time between the lower and upper limit parameters will be zipped. Optional. Default value is 30
+
+.EXAMPLE
+Compress-Files -Path D:\Logs\Logfiles -SizeLimit 250
+
+Will zip files between 30 - 90 days old in subfolders of D:\Logs\Logfiles where the subfolder size is greater than 250 Mb
+
+.EXAMPLE
+Compress-Files -Path D:\IIS_LogFiles -LowerLimit 7
+
+Will zip files between 7 - 90 days old in subfolders of D:\IIS_LogFiles where the subfolder size is greater than 500 Mb
+
+.Notes
+This script requires the stand alone version of 7zip - 7za.exe. It is expected in this location:
+D:\Tools\7za\7za.exe
+
+You may need to change this to suit your needs
+#>
+[cmdletbinding()]
+
+param
+(
+[parameter(Mandatory=$true,HelpMessage="Enter the path to the folder. Subfolders will be examined, folders over 500 Mb will be archived")]
+[string]$Path = 'D:\Logs',
+
+[int]$SizeLimit = 500,
+
+[int]$UpperLimit = 90,
+
+[int]$LowerLimit = 30
+)
+
+[datetime]$90days=(get-date).AddDays(-$UpperLimit)
+[datetime]$30days=(get-date).AddDays(-$LowerLimit)
+[string]$date=(get-date -format ddMMyy)
+
+
+    #Check whether 7za.exe is present in the correct location - this is a standalone version of 7zip
+    #http://7-zip.org/download.html
+    If ( !(test-path -Path 'D:\Tools\7za\7za.exe') ) {
+    Write-Host "D:\Tools\7za\7za.exe is missing. Please install this in order to continue. " -ForegroundColor Red
+    Write-Host "http://7-zip.org/download.html" -ForegroundColor Red
+    }
+
+    Else {
+
+    $Collection = (gci $Path | where {$_.PSISContainer})
+
+        foreach ($item in $Collection) {
+
+            $SubFolders = gci $item.fullname -recurse | where { !$_.PSISContainer } | Measure-Object -property length -sum
+            [int]$size = "{0:N0}” -f ($SubFolders.sum / 1Mb)
+        
+            If ( $Size -gt $SizeLimit ) {
+        
+                $ZipPath = $item.fullname
+                $ToZip = gci $ZipPath -Recurse -Exclude "*.zip" | where { !$_.PSISContainer -and $_.CreationTime -gt $90days -and $_.CreationTime -lt $30days}
+                        
+                If ( $ToZip -ne $Null ) {
+        
+                    foreach ($file in $ToZip) {
+                        $directory = $file.DirectoryName 
+                        write-debug "directory is $directory"
+		                    $ZipFIle = $file.FullName
+                        Write-Debug "Zipfile is $Zipfile"
+                        D:\Tools\7za\7za.exe a "$directory\archive\archive$date.zip" "$ZipFile"
+                        Remove-Item $ZipFIle
+		              }
+                }
+            }
+        }
+    }
+}
